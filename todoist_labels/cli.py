@@ -5,6 +5,7 @@
   * семантичний (sentence-transformers) по повному тексту — опційно.
 """
 import argparse
+from functools import lru_cache
 import os
 import re
 import sys
@@ -37,22 +38,33 @@ def fetch_labels(token):
 
 
 def fuzzy_search(labels, queries, threshold=60):
+    """Ранжує за кількістю різних ключових слів, що збіглись, далі за сумою оцінок."""
     from thefuzz import fuzz
 
-    best = {}
-    for q in queries:
-        for label in labels:
-            score = fuzz.partial_ratio(q, label["name"])
-            if score >= threshold and score > best.get(label["id"], (None, -1))[1]:
-                best[label["id"]] = (q, score, label)
-    rows = [{**lab, "query": q, "score": s} for q, s, lab in best.values()]
-    return sorted(rows, key=lambda r: r["score"], reverse=True)
+    rows = []
+    for label in labels:
+        hits = [(q, fuzz.partial_ratio(q, label["name"])) for q in dict.fromkeys(queries)]
+        hits = [(q, sc) for q, sc in hits if sc >= threshold]
+        if hits:
+            rows.append({**label,
+                         "query": ", ".join(q for q, _ in hits),
+                         "hits": len(hits),
+                         "score": max(sc for _, sc in hits),
+                         "total": sum(sc for _, sc in hits)})
+    return sorted(rows, key=lambda r: (r["hits"], r["total"], -len(r["name"])), reverse=True)
+
+
+@lru_cache(maxsize=1)
+def get_model():
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(SEMANTIC_MODEL)
 
 
 def semantic_search(labels, text):
-    from sentence_transformers import SentenceTransformer, util
+    from sentence_transformers import util
 
-    model = SentenceTransformer(SEMANTIC_MODEL)
+    model = get_model()
     query = model.encode(text, convert_to_tensor=True)
     names = model.encode([l["name"] for l in labels], convert_to_tensor=True)
     scores = util.pytorch_cos_sim(query, names)[0].cpu().numpy() * 100
