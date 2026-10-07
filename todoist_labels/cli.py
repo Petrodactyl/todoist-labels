@@ -92,12 +92,20 @@ def main(argv=None):
         p.error("потрібен текст контексту (аргумент, --file або stdin)")
     text = text.strip()
 
-    token = os.environ.get("TODOIST_API_TOKEN")
+    token = os.environ.get("TODOIST_API_TOKEN", "").strip().strip("\"'")
     if not token:
         sys.exit("Задайте змінну середовища TODOIST_API_TOKEN "
                  "(Todoist → Settings → Integrations → Developer).")
 
-    labels = fetch_labels(token)
+    try:
+        labels = fetch_labels(token)
+    except Exception as e:
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if status in (401, 403):
+            sys.exit(f"Todoist відхилив токен (HTTP {status}). Перевірте TODOIST_API_TOKEN: "
+                     f"це персональний токен із Settings → Integrations → Developer, "
+                     f"без пробілів і лапок (довжина зараз: {len(token)}).")
+        raise
     if not labels:
         sys.exit("У Todoist не знайдено жодної мітки.")
 
