@@ -17,3 +17,4 @@
     todoist-labels "Психологічне. Робота"
     todoist-labels -f opis.txt -n 10
     echo "текст" | todoist-labels --no-semantic
+    todoist-labels --no-fuzzy "English text"   # лише семантичний пошук

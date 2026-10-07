@@ -92,7 +92,10 @@ def main(argv=None):
     p.add_argument("-t", "--threshold", type=int, default=60, help="поріг нечіткого пошуку (60)")
     p.add_argument("--min-length", type=int, default=4, help="мін. довжина ключового слова (4)")
     p.add_argument("--no-semantic", action="store_true", help="пропустити семантичний пошук (швидше, без torch)")
+    p.add_argument("--no-fuzzy", action="store_true", help="пропустити нечіткий пошук (корисно для текстів іншою мовою)")
     args = p.parse_args(argv)
+    if args.no_fuzzy and args.no_semantic:
+        p.error("--no-fuzzy і --no-semantic разом вимикають обидва пошуки")
 
     if args.file:
         text = open(args.file, encoding="utf-8").read()
@@ -121,10 +124,11 @@ def main(argv=None):
     if not labels:
         sys.exit("У Todoist не знайдено жодної мітки.")
 
-    keywords = get_clean_keywords(text, args.min_length)
-    print(f"Ключові слова: {keywords}")
-    print_table(fuzzy_search(labels, keywords, args.threshold)[: args.limit],
-                "Нечіткий пошук:", extra="query")
+    if not args.no_fuzzy:
+        keywords = get_clean_keywords(text, args.min_length)
+        print(f"Ключові слова: {keywords}")
+        print_table(fuzzy_search(labels, keywords, args.threshold)[: args.limit],
+                    "Нечіткий пошук:", extra="query")
 
     if not args.no_semantic:
         try:
